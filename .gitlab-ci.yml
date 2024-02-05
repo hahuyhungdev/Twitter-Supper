@@ -1,0 +1,80 @@
+stages:
+  - tag
+  - build
+  - rollback
+  - deploy
+  
+get_tag:
+  stage: tag
+  script:
+    - 'echo "TAG_CONTAINING_COMMIT=$(git describe --tags --abbrev=0)" > tag.env'
+    - cat tag.env
+  artifacts:
+    reports:
+      dotenv: tag.env
+  only:
+    - develop
+
+.loginDocker:
+  before_script:
+    - echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+build_docker_image:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  dependencies:
+    - get_tag
+  extends: .loginDocker
+  script:
+    - 'if [ -f tag.env ]; then source tag.env; fi'
+    - 'export IMAGE_TAG=${TAG_CONTAINING_COMMIT:-$CI_PIPELINE_ID}'
+    - echo "Building Docker image with tag $IMAGE_TAG"
+    - echo "$TWITTER_ENV_PRODUCTION" > .env.production
+    - docker build --progress=plain -t $IMAGE:$IMAGE_TAG .
+    - docker push $IMAGE:$IMAGE_TAG
+    - docker tag $IMAGE:$IMAGE_TAG $IMAGE:latest
+    - docker push $IMAGE:latest
+  only:
+    - develop
+
+
+deploy:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+  extends: .loginDocker
+  before_script:
+    - apt-get update && apt-get install -y ssh-client docker-compose
+    - echo "$TWITTER_ENV_PRODUCTION" > .env.production
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - ssh-keyscan $SSH_HOST >> ~/.ssh/known_hosts
+
+  script:
+    - echo $IMAGE
+    - 'ssh $SSH_USER@$SSH_HOST "echo $IMAGE > docker pull $IMAGE:latest && cd /root/app/tweet && docker-compose up -d && exit"'
+
+  only:
+    - develop
+rollback_docker_image:
+  stage: rollback
+  image: docker:latest
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2A
+  extends: .loginDocker
+  script:
+    - docker ps -a
+    # - docker stop hahuyhungdev/tweet
+    - docker run --name tweet -it -p 3001:3001 --env-file .env.production hahuyhungdev/tweet:$CI_PIPELINE_ID
+  when: manual
+  only:
+    - develop

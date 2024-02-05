@@ -1,0 +1,26 @@
+{
+  "extends": ["stylelint-config-rational-order", "stylelint-config-standard-scss", "stylelint-config-sass-guidelines"],
+  "plugins": ["stylelint-no-nested-media", "stylelint-group-selectors", "stylelint-z-index-value-constraint"],
+  "rules": {
+    "scss/dollar-variable-pattern": null,
+    "pitcher/no-nested-media": true,
+    "plugin/z-index-value-constraint": {
+      "min": 1,
+      "max": 10
+    },
+    "max-nesting-depth": null,
+    "selector-max-compound-selectors": null,
+    "string-quotes": "double",
+    "declaration-empty-line-before": null,
+    "plugin/stylelint-group-selectors": true,
+    "order/properties-alphabetical-order": null,
+    "selector-max-id": null,
+    "no-descending-specificity": null,
+    "plugin/rational-order": [
+      true,
+      {
+        "empty-line-between-groups": true
+      }
+    ]
+  }
+}
